@@ -2,6 +2,11 @@
     if (window.__saveToThymerInjected) return;
     window.__saveToThymerInjected = true;
 
+    // Cached patterns for performance
+    const PLACEHOLDER_PATTERN = /loading|placeholder|spinner|lazy|transparent|blank|spacer|pixel|1x1|avatar|icon|logo|badge|button/i;
+    const YOUTUBE_PATTERN = /youtube\.com|youtu\.be/;
+    const REMOVE_SELECTORS = 'script,style,nav,footer,header,aside,noscript,[role="navigation"],[role="banner"],[role="contentinfo"],.nav,.navbar,.footer,.header,.sidebar,.menu,.ad,.ads,.advertisement,.social-share,.share-buttons,.comments,#comments,.related-posts,.recommended,form,iframe,svg,button,.button,[hidden],[aria-hidden="true"]';
+
     chrome.runtime.onMessage.addListener((msg, sender, respond) => {
         if (msg.type === 'PING') { respond({ pong: true }); return true; }
         if (msg.type === 'GET_PAGE_DATA') { respond(extractPageData()); return true; }
@@ -36,7 +41,7 @@
     }
 
     function isYouTube() {
-        return /youtube\.com|youtu\.be/.test(location.hostname);
+        return YOUTUBE_PATTERN.test(location.hostname);
     }
 
     function getYouTubeThumbnail() {
@@ -52,8 +57,7 @@
 
     function isPlaceholderImage(src) {
         if (!src || src.startsWith('data:')) return true;
-        const patterns = /loading|placeholder|spinner|lazy|transparent|blank|spacer|pixel|1x1|avatar|icon|logo|badge|button/i;
-        return patterns.test(src);
+        return PLACEHOLDER_PATTERN.test(src);
     }
 
     function findMainContent() {
@@ -106,17 +110,8 @@
         const content = findMainContent();
         const clone = content.cloneNode(true);
 
-        // Remove non-content elements
-        const removeSelectors = [
-            'script', 'style', 'nav', 'footer', 'header', 'aside', 'noscript',
-            '[role="navigation"]', '[role="banner"]', '[role="contentinfo"]',
-            '.nav', '.navbar', '.footer', '.header', '.sidebar', '.menu',
-            '.ad', '.ads', '.advertisement', '.social-share', '.share-buttons',
-            '.comments', '#comments', '.related-posts', '.recommended',
-            'form', 'iframe', 'svg', 'button', '.button',
-            '[hidden]', '[aria-hidden="true"]'
-        ];
-        clone.querySelectorAll(removeSelectors.join(',')).forEach(el => el.remove());
+        // Remove non-content elements using cached selector
+        clone.querySelectorAll(REMOVE_SELECTORS).forEach(el => el.remove());
 
         // Remove hidden elements
         clone.querySelectorAll('*').forEach(el => {

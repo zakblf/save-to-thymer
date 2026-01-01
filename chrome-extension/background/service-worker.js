@@ -8,11 +8,9 @@ chrome.runtime.onInstalled.addListener(() => {
     });
 });
 
-chrome.contextMenus.onClicked.addListener((info, tab) => {
-    if (info.menuItemId === 'save-to-thymer') {
-        chrome.action.openPopup();
-    }
-});
+// Note: Context menu clicks cannot open the popup in MV3 service workers.
+// chrome.action.openPopup() only works from user gesture in popup context.
+// Users must click the extension icon or use the keyboard shortcut.
 
 chrome.commands.onCommand.addListener((command) => {
     if (command === 'quick_save') {

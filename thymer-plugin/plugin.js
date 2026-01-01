@@ -32,9 +32,13 @@ class Plugin extends AppPlugin {
         return { collections: collections.map(c => ({ guid: c.getGuid(), name: c.getConfiguration().name })) };
     }
 
-    async getFields(collectionGuid) {
+    async findCollection(guid) {
         const collections = await this.data.getAllCollections();
-        const col = collections.find(c => c.getGuid() === collectionGuid);
+        return collections.find(c => c.getGuid() === guid);
+    }
+
+    async getFields(collectionGuid) {
+        const col = await this.findCollection(collectionGuid);
         if (!col) return { fields: [] };
 
         const config = col.getConfiguration();
@@ -46,8 +50,7 @@ class Plugin extends AppPlugin {
     }
 
     async saveRecord({ collectionGuid, title, properties, bannerUrl, bodyMarkdown }) {
-        const collections = await this.data.getAllCollections();
-        const col = collections.find(c => c.getGuid() === collectionGuid);
+        const col = await this.findCollection(collectionGuid);
         if (!col) return { error: 'Collection not found' };
 
         const config = col.getConfiguration();
@@ -114,7 +117,9 @@ class Plugin extends AppPlugin {
                     }
                     lastItem = item;
                 }
-            } catch { }
+            } catch (err) {
+                console.error('[SaveToThymer] Failed to create line item:', err);
+            }
         }
     }
 

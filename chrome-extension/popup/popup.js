@@ -1,4 +1,13 @@
 class SaveToThymer {
+    static MSG = {
+        PING: 'PING',
+        GET_PAGE_DATA: 'GET_PAGE_DATA',
+        THYMER_PING: 'THYMER_PING',
+        THYMER_GET_COLLECTIONS: 'THYMER_GET_COLLECTIONS',
+        THYMER_GET_COLLECTION_FIELDS: 'THYMER_GET_COLLECTION_FIELDS',
+        THYMER_SAVE_RECORD: 'THYMER_SAVE_RECORD'
+    };
+
     constructor() {
         this.connected = false;
         this.pageData = null;
@@ -44,7 +53,7 @@ class SaveToThymer {
 
             let needsInjection = false;
             try {
-                await chrome.tabs.sendMessage(tab.id, { type: 'PING' });
+                await chrome.tabs.sendMessage(tab.id, { type: SaveToThymer.MSG.PING });
             } catch {
                 needsInjection = true;
             }
@@ -54,7 +63,7 @@ class SaveToThymer {
                 await this.wait(300);
             }
 
-            this.pageData = await chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_DATA' }) || this.setDefaultPageData(tab);
+            this.pageData = await chrome.tabs.sendMessage(tab.id, { type: SaveToThymer.MSG.GET_PAGE_DATA }) || this.setDefaultPageData(tab);
         } catch {
             this.setDefaultPageData();
         }
@@ -83,12 +92,12 @@ class SaveToThymer {
                     await chrome.scripting.executeScript({ target: { tabId: this.thymerTabId }, files: ['content/thymer-bridge.js'] });
                     await this.wait(200);
                 } catch { }
-                const res = await chrome.tabs.sendMessage(this.thymerTabId, { type: 'THYMER_PING', source: 'save-to-thymer' });
+                const res = await chrome.tabs.sendMessage(this.thymerTabId, { type: SaveToThymer.MSG.THYMER_PING, source: 'save-to-thymer' });
                 if (res?.connected) {
                     status.className = 'status-bar connected';
                     text.textContent = 'Connected';
                     this.connected = true;
-                    this.collections = (await this.send({ type: 'THYMER_GET_COLLECTIONS' }))?.collections || [];
+                    this.collections = (await this.send({ type: SaveToThymer.MSG.THYMER_GET_COLLECTIONS }))?.collections || [];
                     return;
                 }
             } catch { }
@@ -105,8 +114,14 @@ class SaveToThymer {
     }
 
     async getFields(guid) {
-        const res = await this.send({ type: 'THYMER_GET_COLLECTION_FIELDS', collectionGuid: guid });
+        const res = await this.send({ type: SaveToThymer.MSG.THYMER_GET_COLLECTION_FIELDS, collectionGuid: guid });
         return (res?.fields || []).filter(f => f.type !== 'icon' && f.id !== 'icon' && f.label?.toLowerCase() !== 'icon');
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     $(id) {
@@ -184,7 +199,7 @@ class SaveToThymer {
             <div class="template-item" data-i="${i}" draggable="true">
                 <div class="template-item-handle"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M108,60A16,16,0,1,1,92,44,16,16,0,0,1,108,60Zm56,16a16,16,0,1,0-16-16A16,16,0,0,0,164,76ZM92,112a16,16,0,1,0,16,16A16,16,0,0,0,92,112Zm72,0a16,16,0,1,0,16,16A16,16,0,0,0,164,112ZM92,180a16,16,0,1,0,16,16A16,16,0,0,0,92,180Zm72,0a16,16,0,1,0,16,16A16,16,0,0,0,164,180Z"/></svg></div>
                 <div class="template-item-content">
-                    <div class="template-item-info"><span class="template-item-name">${t.name}</span><span class="template-item-collection">${t.collectionName || ''}</span></div>
+                    <div class="template-item-info"><span class="template-item-name">${this.escapeHtml(t.name)}</span><span class="template-item-collection">${this.escapeHtml(t.collectionName || '')}</span></div>
                     <div class="template-item-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
                 </div>
             </div>`).join('');
@@ -301,7 +316,7 @@ class SaveToThymer {
         this.$('editor-body-source').value = template?.clipContent ? 'page-content' : '';
 
         const sel = this.$('editor-collection');
-        sel.innerHTML = '<option value="">Select...</option>' + this.collections.map(c => `<option value="${c.guid}" ${template?.collectionGuid === c.guid ? 'selected' : ''}>${c.name}</option>`).join('');
+        sel.innerHTML = '<option value="">Select...</option>' + this.collections.map(c => `<option value="${c.guid}" ${template?.collectionGuid === c.guid ? 'selected' : ''}>${this.escapeHtml(c.name)}</option>`).join('');
 
         if (template?.collectionGuid) {
             this.fields = await this.getFields(template.collectionGuid);
@@ -309,12 +324,6 @@ class SaveToThymer {
         } else {
             this.fields = [];
             this.renderMappings();
-        }
-
-        if (template?.clipContent) {
-            this.$('editor-body-source').value = 'page-content';
-        } else {
-            this.$('editor-body-source').value = '';
         }
 
         this.showView('template-editor');
@@ -401,19 +410,17 @@ class SaveToThymer {
         try {
             const props = {};
             const title = this.$('preview-title').value;
-            let banner = null;
 
             this.currentTemplate.mappings.forEach(m => {
                 if (m.source === 'page-title') props[m.fieldId] = title;
                 else if (m.source === 'page-url') props[m.fieldId] = this.pageData?.url;
-                else if (m.source === 'page-image') banner = this.pageData?.ogImage;
                 else if (m.source === 'page-description') props[m.fieldId] = this.pageData?.description;
                 else if (m.source === 'static') props[m.fieldId] = m.staticValue;
                 else if (m.source === 'custom') props[m.fieldId] = document.querySelector(`[data-field-id="${m.fieldId}"]`)?.value || '';
             });
 
             const res = await this.send({
-                type: 'THYMER_SAVE_RECORD',
+                type: SaveToThymer.MSG.THYMER_SAVE_RECORD,
                 payload: {
                     collectionGuid: this.currentTemplate.collectionGuid,
                     title,
