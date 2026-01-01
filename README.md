@@ -8,6 +8,16 @@ A Chrome extension + Thymer plugin combo for saving web pages directly to Thymer
 
 <img src="save-to-thymer.png" alt="Save to Thymer" width="400">
 
+## Features
+
+- **Custom Templates** — Create reusable templates for different use cases (articles, reading list, bookmarks...)
+- **Field Mapping** — Map page data (title, URL, description, images) to any collection property
+- **Static Values** — Pre-fill fields with fixed values (e.g., Status = "To Read")
+- **Page Clipping** — Extract and save the main content of articles as Markdown
+- **Image Selector** — Choose from detected page images for the banner
+- **Import/Export** — Backup and share your templates as JSON
+- **Drag & Drop Reorder** — Organize your templates by priority
+
 ## Installation
 
 ### 1. Install the Chrome Extension

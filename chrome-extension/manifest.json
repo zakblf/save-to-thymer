@@ -21,9 +21,6 @@
             "128": "icons/save-to-thymer-128.png"
         }
     },
-    "background": {
-        "service_worker": "background/service-worker.js"
-    },
     "content_scripts": [
         {
             "matches": [
@@ -47,18 +44,6 @@
             "run_at": "document_idle"
         }
     ],
-    "commands": {
-        "_execute_action": {
-            "description": "Open Save to Thymer"
-        },
-        "quick_save": {
-            "suggested_key": {
-                "default": "Alt+Shift+S",
-                "mac": "Option+Shift+S"
-            },
-            "description": "Quick save to Thymer"
-        }
-    },
     "icons": {
         "16": "icons/save-to-thymer-16.png",
         "48": "icons/save-to-thymer-48.png",
