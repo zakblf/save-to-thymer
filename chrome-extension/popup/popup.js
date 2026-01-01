@@ -83,7 +83,7 @@ class SaveToThymer {
         const text = status.querySelector('.status-text');
 
         for (let i = 1; i <= retries; i++) {
-            text.textContent = `Connecting... (${i}/${retries})`;
+            text.textContent = `Connecting to Thymer...`;
             try {
                 const tabs = await chrome.tabs.query({ url: 'https://*.thymer.com/*' });
                 if (!tabs.length) throw new Error('No Thymer tab');
@@ -94,8 +94,8 @@ class SaveToThymer {
                 } catch { }
                 const res = await chrome.tabs.sendMessage(this.thymerTabId, { type: SaveToThymer.MSG.THYMER_PING, source: 'save-to-thymer' });
                 if (res?.connected) {
-                    status.className = 'status-bar connected';
-                    text.textContent = 'Connected';
+                    status.className = 'header-status connected';
+                    text.textContent = 'Connected to Thymer';
                     this.connected = true;
                     this.collections = (await this.send({ type: SaveToThymer.MSG.THYMER_GET_COLLECTIONS }))?.collections || [];
                     return;
@@ -103,8 +103,8 @@ class SaveToThymer {
             } catch { }
             if (i < retries) await this.wait(500);
         }
-        status.className = 'status-bar error';
-        text.textContent = 'Not connected';
+        status.className = 'header-status error';
+        text.textContent = 'Not connected to Thymer';
         this.connected = false;
     }
 
@@ -129,7 +129,6 @@ class SaveToThymer {
     }
 
     bindEvents() {
-        this.$('close-btn').onclick = () => window.close();
         this.$('reconnect-btn').onclick = () => { this.connected = false; this.thymerTabId = null; this.connect(); };
         this.$('settings-btn').onclick = () => this.showView('settings-view');
         this.$('settings-back-btn').onclick = () => this.showView('template-selector');
