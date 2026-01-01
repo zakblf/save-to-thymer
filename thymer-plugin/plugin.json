@@ -1,0 +1,6 @@
+{
+    "name": "Save to Thymer",
+    "description": "Receive web page captures from the Save to Thymer Chrome extension",
+    "icon": "bookmark",
+    "version": "1.0.0"
+}
