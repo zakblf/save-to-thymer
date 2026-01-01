@@ -31,14 +31,8 @@ class SaveToThymer {
     }
 
     async loadTemplates() {
-        const { templates, forms } = await chrome.storage.sync.get(['templates', 'forms']);
-        if (!templates && forms) {
-            this.templates = forms;
-            await chrome.storage.sync.set({ templates: forms });
-            await chrome.storage.sync.remove('forms');
-        } else {
-            this.templates = templates || [];
-        }
+        const { templates } = await chrome.storage.sync.get('templates');
+        this.templates = templates || [];
     }
 
     async saveTemplates() {
@@ -120,9 +114,7 @@ class SaveToThymer {
     }
 
     escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
     }
 
     $(id) {
@@ -426,7 +418,7 @@ class SaveToThymer {
                     title,
                     properties: props,
                     bannerUrl: this.selectedBanner,
-                    bodyMarkdown: this.currentTemplate.clipContent ? this.getBodyMarkdown() : null
+                    bodyMarkdown: this.currentTemplate.clipContent ? this.pageData?.bodyMarkdown || '' : null
                 }
             });
 
@@ -442,9 +434,7 @@ class SaveToThymer {
         }
     }
 
-    getBodyMarkdown() {
-        return this.pageData?.bodyMarkdown || '';
-    }
+
 
     exportTemplates() {
         const blob = new Blob([JSON.stringify(this.templates, null, 2)], { type: 'application/json' });

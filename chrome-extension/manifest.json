@@ -5,8 +5,8 @@
     "description": "Save web pages to Thymer collections with custom templates and property mapping",
     "permissions": [
         "activeTab",
+        "tabs",
         "storage",
-        "contextMenus",
         "scripting"
     ],
     "host_permissions": [
