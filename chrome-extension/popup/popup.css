@@ -35,6 +35,12 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+button,
+input,
+select {
+  font: inherit;
+}
+
 .popup-container {
   display: flex;
   flex-direction: column;
@@ -59,11 +65,6 @@ body {
   background: var(--surface);
 }
 
-.header-title {
-  display: flex;
-  align-items: center;
-}
-
 .header-status {
   display: flex;
   align-items: center;
@@ -73,7 +74,6 @@ body {
   color: var(--text-muted);
 }
 
-.header-status .status-dot,
 .status-dot {
   width: 6px;
   height: 6px;
@@ -94,19 +94,8 @@ body {
   gap: 2px;
 }
 
-.status-bar {
-  display: none;
-}
-
-.status-bar.connected .status-dot {
-  background: var(--success);
-}
-
-.status-bar.error .status-dot {
-  background: var(--error);
-}
-
-.icon-btn {
+.icon-btn,
+.back-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -120,7 +109,8 @@ body {
   transition: all var(--transition);
 }
 
-.icon-btn:hover {
+.icon-btn:hover,
+.back-btn:hover {
   background: var(--surface-active);
   color: var(--text);
 }
@@ -129,7 +119,8 @@ body {
   transform: scale(0.95);
 }
 
-.icon-btn svg {
+.icon-btn svg,
+.back-btn svg {
   width: 14px;
   height: 14px;
 }
@@ -205,7 +196,6 @@ body {
 .template-item-name {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text);
 }
 
 .template-item-collection {
@@ -270,30 +260,6 @@ body {
   font-size: 16px;
 }
 
-.back-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all var(--transition);
-}
-
-.back-btn:hover {
-  background: var(--surface-active);
-  color: var(--text);
-}
-
-.back-btn svg {
-  width: 14px;
-  height: 14px;
-}
-
 .field-group {
   display: flex;
   flex-direction: column;
@@ -317,7 +283,6 @@ body {
   border-radius: var(--radius-sm);
   color: var(--text);
   font-size: 13px;
-  font-family: inherit;
 }
 
 .field-input::placeholder {
@@ -365,7 +330,6 @@ body {
   color: var(--accent);
   font-size: 13px;
   font-weight: 600;
-  font-family: inherit;
   cursor: pointer;
   transition: all var(--transition);
 }
@@ -374,12 +338,6 @@ body {
 .primary-btn:hover {
   background: var(--accent);
   color: #000;
-}
-
-.save-btn:active,
-.primary-btn:active {
-  background: var(--surface-active);
-  color: var(--text-muted);
 }
 
 .save-btn:disabled {
@@ -394,22 +352,20 @@ body {
   height: 14px;
 }
 
-.editor-content {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.primary-btn {
+  flex: 1;
 }
 
-.field-mappings {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
+.editor-content,
+.field-mappings,
 .mappings-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.editor-content {
+  gap: 12px;
 }
 
 .mapping-row {
@@ -430,7 +386,6 @@ body {
 .mapping-field-name {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text);
 }
 
 .mapping-field-type {
@@ -459,7 +414,6 @@ body {
   border-radius: var(--radius-sm);
   color: var(--text);
   font-size: 13px;
-  font-family: inherit;
   transition: background var(--transition);
 }
 
@@ -469,7 +423,8 @@ body {
   background: var(--surface-active);
 }
 
-.editor-actions {
+.editor-actions,
+.settings-actions {
   display: flex;
   gap: 8px;
 }
@@ -486,7 +441,6 @@ body {
   color: var(--error);
   font-size: 13px;
   font-weight: 500;
-  font-family: inherit;
   cursor: pointer;
   transition: all var(--transition);
 }
@@ -496,18 +450,9 @@ body {
   color: #fff;
 }
 
-.delete-btn:active {
-  background: var(--surface-active);
-  color: var(--text-muted);
-}
-
 .delete-btn svg {
   width: 14px;
   height: 14px;
-}
-
-.primary-btn {
-  flex: 1;
 }
 
 .settings-content {
@@ -519,11 +464,6 @@ body {
 .settings-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.settings-actions {
-  display: flex;
   gap: 8px;
 }
 
@@ -540,7 +480,6 @@ body {
   color: var(--text);
   font-size: 13px;
   font-weight: 500;
-  font-family: inherit;
   cursor: pointer;
   transition: background var(--transition);
 }

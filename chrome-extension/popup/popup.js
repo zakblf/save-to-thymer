@@ -50,6 +50,7 @@ class SaveToThymer {
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
             if (!tab?.id) return this.setDefaultPageData();
             this.sourceTabId = tab.id;
+            this.sourceWindowId = tab.windowId;
 
             let needsInjection = false;
             try {
@@ -430,8 +431,11 @@ class SaveToThymer {
             });
 
             if (res?.success) {
-                if (this.sourceTabId) try { await chrome.tabs.update(this.sourceTabId, { active: true }); } catch { }
-                setTimeout(() => window.close(), 500);
+                try {
+                    if (this.sourceWindowId) await chrome.windows.update(this.sourceWindowId, { focused: true });
+                    if (this.sourceTabId) await chrome.tabs.update(this.sourceTabId, { active: true });
+                } catch { }
+                setTimeout(() => window.close(), 100);
             } else throw new Error(res?.error || 'Failed');
         } catch {
             btn.disabled = false;
