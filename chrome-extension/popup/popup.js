@@ -411,13 +411,15 @@ class SaveToThymer {
                 else if (m.source === 'custom') props[m.fieldId] = document.querySelector(`[data-field-id="${m.fieldId}"]`)?.value || '';
             });
 
+            const hasBanner = this.currentTemplate.mappings?.some(m => m.source === 'page-image');
+            
             const res = await this.send({
                 type: SaveToThymer.MSG.THYMER_SAVE_RECORD,
                 payload: {
                     collectionGuid: this.currentTemplate.collectionGuid,
                     title,
                     properties: props,
-                    bannerUrl: this.selectedBanner,
+                    bannerUrl: hasBanner ? this.selectedBanner : null,
                     bodyMarkdown: this.currentTemplate.clipContent ? this.pageData?.bodyMarkdown || '' : null
                 }
             });
