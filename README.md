@@ -1,10 +1,8 @@
 # Save to Thymer
 
+A browser extension + Thymer plugin combo for saving web pages directly to Thymer collections. Create custom templates and map page data to your collection properties.
 
-
-A Chrome extension + Thymer plugin combo for saving web pages directly to Thymer collections. Allowing you to create custom templates and map page data to your collection properties.
-
-**Version:** 1.0.0
+**Version:** 1.1.0 | **Browsers:** Chrome, Firefox
 
 <img src="save-to-thymer.png" alt="Save to Thymer" width="400">
 
@@ -20,13 +18,23 @@ A Chrome extension + Thymer plugin combo for saving web pages directly to Thymer
 
 ## Installation
 
-### 1. Install the Chrome Extension
+### 1. Install the Browser Extension
+
+#### Chrome
 
 1.  Clone or download this repository.
 2.  Open Chrome and navigate to `chrome://extensions/`.
 3.  Enable **Developer mode** (toggle in the top right).
 4.  Click **Load unpacked**.
-5.  Select the `chrome-extension` folder from this repository.
+5.  Select the `browser-extension` folder from this repository.
+
+#### Firefox
+
+1.  Clone or download this repository.
+2.  Open Firefox and navigate to `about:debugging`.
+3.  Click **This Firefox** (in the left sidebar).
+4.  Click **Load Temporary Add-on**.
+5.  Select the `manifest.json` file inside the `browser-extension` folder.
 
 ### 2. Install the Thymer Plugin
 
