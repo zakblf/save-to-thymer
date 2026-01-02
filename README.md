@@ -2,7 +2,7 @@
 
 A browser extension + Thymer plugin combo for saving web pages directly to Thymer collections. Create custom templates and map page data to your collection properties.
 
-**Version:** 1.1.0 | **Browsers:** Chrome, Firefox
+**Version:** 1.1.0
 
 <img src="save-to-thymer.png" alt="Save to Thymer" width="400">
 
