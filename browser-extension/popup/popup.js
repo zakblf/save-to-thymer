@@ -117,6 +117,16 @@ class SaveToThymer {
         return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
     }
 
+    isSafeUrl(url) {
+        if (!url) return false;
+        try {
+            const parsed = new URL(url);
+            return ['http:', 'https:', 'data:'].includes(parsed.protocol);
+        } catch {
+            return false;
+        }
+    }
+
     $(id) {
         return document.getElementById(id);
     }
@@ -151,7 +161,7 @@ class SaveToThymer {
         container.addEventListener('dragstart', e => {
             const item = e.target.closest('.template-item');
             if (!item) return;
-            this.draggedIndex = parseInt(item.dataset.i);
+            this.draggedIndex = parseInt(item.dataset.i, 10);
             setTimeout(() => item.classList.add('dragging'), 0);
             e.dataTransfer.effectAllowed = 'move';
         });
@@ -278,7 +288,7 @@ class SaveToThymer {
                 <button class="image-selector-close">×</button>
             </div>
             <div class="image-selector-grid">
-                ${images.map(img => `<img src="${img}" class="image-selector-item" data-url="${img}">`).join('')}
+                ${images.filter(img => this.isSafeUrl(img)).map(img => `<img src="${img}" class="image-selector-item" data-url="${img}">`).join('')}
             </div>
         `;
 
@@ -402,17 +412,21 @@ class SaveToThymer {
         try {
             const props = {};
             const title = this.$('preview-title').value;
+            const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype'];
+            const safeSet = (obj, key, value) => {
+                if (!DANGEROUS_KEYS.includes(key)) obj[key] = value;
+            };
 
             this.currentTemplate.mappings.forEach(m => {
-                if (m.source === 'page-title') props[m.fieldId] = title;
-                else if (m.source === 'page-url') props[m.fieldId] = this.pageData?.url;
-                else if (m.source === 'page-description') props[m.fieldId] = this.pageData?.description;
-                else if (m.source === 'static') props[m.fieldId] = m.staticValue;
-                else if (m.source === 'custom') props[m.fieldId] = document.querySelector(`[data-field-id="${m.fieldId}"]`)?.value || '';
+                if (m.source === 'page-title') safeSet(props, m.fieldId, title);
+                else if (m.source === 'page-url') safeSet(props, m.fieldId, this.pageData?.url);
+                else if (m.source === 'page-description') safeSet(props, m.fieldId, this.pageData?.description);
+                else if (m.source === 'static') safeSet(props, m.fieldId, m.staticValue);
+                else if (m.source === 'custom') safeSet(props, m.fieldId, document.querySelector(`[data-field-id="${m.fieldId}"]`)?.value || '');
             });
 
             const hasBanner = this.currentTemplate.mappings?.some(m => m.source === 'page-image');
-            
+
             const res = await this.send({
                 type: SaveToThymer.MSG.THYMER_SAVE_RECORD,
                 payload: {

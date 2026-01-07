@@ -118,7 +118,7 @@ class Plugin extends AppPlugin {
                     lastItem = item;
                 }
             } catch (err) {
-                console.error('[SaveToThymer] Failed to create line item:', err);
+                console.error('[SaveToThymer] Failed to create line item');
             }
         }
     }

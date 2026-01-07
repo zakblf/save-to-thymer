@@ -136,7 +136,7 @@
 
             switch (tag) {
                 case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
-                    return '\n' + '#'.repeat(parseInt(tag[1])) + ' ' + children.trim() + '\n\n';
+                    return '\n' + '#'.repeat(parseInt(tag[1], 10)) + ' ' + children.trim() + '\n\n';
                 case 'p': return children.trim() + '\n\n';
                 case 'br': return '\n';
                 case 'hr': return '\n---\n\n';
