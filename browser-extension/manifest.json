@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Save to Thymer",
-    "version": "1.1.0",
+    "version": "2.0.0",
     "description": "Save web pages to Thymer collections with custom templates and property mapping",
     "browser_specific_settings": {
         "gecko": {

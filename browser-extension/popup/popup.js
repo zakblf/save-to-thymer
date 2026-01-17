@@ -5,7 +5,12 @@ class SaveToThymer {
         THYMER_PING: 'THYMER_PING',
         THYMER_GET_COLLECTIONS: 'THYMER_GET_COLLECTIONS',
         THYMER_GET_COLLECTION_FIELDS: 'THYMER_GET_COLLECTION_FIELDS',
-        THYMER_SAVE_RECORD: 'THYMER_SAVE_RECORD'
+        THYMER_PING: 'THYMER_PING',
+        THYMER_GET_COLLECTIONS: 'THYMER_GET_COLLECTIONS',
+        THYMER_GET_COLLECTION_FIELDS: 'THYMER_GET_COLLECTION_FIELDS',
+        THYMER_SAVE_RECORD: 'THYMER_SAVE_RECORD',
+        THYMER_GET_TEMPLATES: 'THYMER_GET_TEMPLATES',
+        THYMER_SAVE_TEMPLATES: 'THYMER_SAVE_TEMPLATES'
     };
 
     constructor() {
@@ -14,29 +19,68 @@ class SaveToThymer {
         this.templates = [];
         this.currentTemplate = null;
         this.collections = [];
-        this.fields = [];
-        this.thymerTabId = null;
-        this.sourceTabId = null;
-        this.draggedIndex = null;
+        this.fieldCache = new Map();
         this.init();
     }
 
     async init() {
-        await this.loadTemplates();
-        await this.getPageData();
+        // Parallelize initial data fetching and connection
+        await Promise.all([
+            this.getPageData(),
+            this.connect().then(() => this.loadTemplatesFromThymer())
+        ]);
+
         this.bindEvents();
         this.initDragAndDrop();
-        await this.connect();
         this.renderTemplates();
     }
 
+    async loadTemplatesFromThymer() {
+        if (!this.connected) {
+            // Fallback to local if not connected (view-only)
+            const { templates } = await chrome.storage.sync.get('templates');
+            this.templates = templates || [];
+            return;
+        }
+
+        try {
+            // Check for local templates to migrate
+            const { templates: localTemplates } = await chrome.storage.sync.get('templates');
+
+            // Fetch from Thymer
+            const res = await this.send({ type: SaveToThymer.MSG.THYMER_GET_TEMPLATES });
+            const thymerTemplates = res?.templates || [];
+
+            // Migrate if needed (one-time)
+            if (localTemplates?.length && !thymerTemplates.length) {
+                this.templates = localTemplates;
+                await this.saveTemplatesToThymer();
+                // Clear local storage after successful migration
+                await chrome.storage.sync.remove('templates');
+            } else {
+                this.templates = thymerTemplates;
+            }
+        } catch (e) {
+            console.error('Failed to load templates', e);
+        }
+    }
+
+    async saveTemplatesToThymer() {
+        if (!this.connected) return;
+        await this.send({
+            type: SaveToThymer.MSG.THYMER_SAVE_TEMPLATES,
+            payload: { templates: this.templates }
+        });
+    }
+
+    // Deprecated: used only for migration source
     async loadTemplates() {
         const { templates } = await chrome.storage.sync.get('templates');
         this.templates = templates || [];
     }
 
     async saveTemplates() {
-        await chrome.storage.sync.set({ templates: this.templates });
+        await this.saveTemplatesToThymer();
     }
 
     async getPageData() {
@@ -73,33 +117,46 @@ class SaveToThymer {
         return new Promise(r => setTimeout(r, ms));
     }
 
-    async connect(retries = 3) {
+    async connect(retries = 5) {
         const status = document.getElementById('connection-status');
         const text = status.querySelector('.status-text');
+        let delay = 200;
 
         for (let i = 1; i <= retries; i++) {
-            text.textContent = `Connecting to Thymer...`;
+            text.textContent = `Connecting...`;
             try {
                 const tabs = await chrome.tabs.query({ url: 'https://*.thymer.com/*' });
                 if (!tabs.length) throw new Error('No Thymer tab');
                 this.thymerTabId = tabs[0].id;
+
+                // Inject bridge if needed
                 try {
                     await chrome.scripting.executeScript({ target: { tabId: this.thymerTabId }, files: ['content/thymer-bridge.js'] });
-                    await this.wait(200);
                 } catch { }
+
                 const res = await chrome.tabs.sendMessage(this.thymerTabId, { type: SaveToThymer.MSG.THYMER_PING, source: 'save-to-thymer' });
+
                 if (res?.connected) {
                     status.className = 'header-status connected';
-                    text.textContent = 'Connected to Thymer';
+                    text.textContent = 'Connected';
                     this.connected = true;
-                    this.collections = (await this.send({ type: SaveToThymer.MSG.THYMER_GET_COLLECTIONS }))?.collections || [];
+
+                    // Fetch collections only if not already cached or empty
+                    if (!this.collections.length) {
+                        this.collections = (await this.send({ type: SaveToThymer.MSG.THYMER_GET_COLLECTIONS }))?.collections || [];
+                    }
                     return;
                 }
             } catch { }
-            if (i < retries) await this.wait(500);
+
+            // Exponential backoff
+            if (i < retries) {
+                await this.wait(delay);
+                delay = Math.min(delay * 1.5, 2000);
+            }
         }
         status.className = 'header-status error';
-        text.textContent = 'Not connected to Thymer';
+        text.textContent = 'Not connected';
         this.connected = false;
     }
 
@@ -109,8 +166,13 @@ class SaveToThymer {
     }
 
     async getFields(guid) {
+        if (this.fieldCache.has(guid)) return this.fieldCache.get(guid);
+
         const res = await this.send({ type: SaveToThymer.MSG.THYMER_GET_COLLECTION_FIELDS, collectionGuid: guid });
-        return (res?.fields || []).filter(f => f.type !== 'icon' && f.id !== 'icon' && f.label?.toLowerCase() !== 'icon');
+        const fields = (res?.fields || []).filter(f => f.type !== 'icon' && f.id !== 'icon' && f.label?.toLowerCase() !== 'icon');
+
+        this.fieldCache.set(guid, fields);
+        return fields;
     }
 
     escapeHtml(text) {

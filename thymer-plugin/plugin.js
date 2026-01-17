@@ -1,5 +1,7 @@
 class Plugin extends AppPlugin {
     onLoad() {
+        this.collectionCache = null;
+        this.collectionCacheTime = 0;
         this.setupMessageListener();
     }
 
@@ -18,6 +20,8 @@ class Plugin extends AppPlugin {
                 else if (type === 'THYMER_GET_COLLECTIONS') response = await this.getCollections();
                 else if (type === 'THYMER_GET_COLLECTION_FIELDS') response = await this.getFields(collectionGuid);
                 else if (type === 'THYMER_SAVE_RECORD') response = await this.saveRecord(payload);
+                else if (type === 'THYMER_GET_TEMPLATES') response = this.getTemplates();
+                else if (type === 'THYMER_SAVE_TEMPLATES') response = await this.saveTemplates(payload);
             } catch (err) {
                 response = { error: err.message };
             }
@@ -28,13 +32,30 @@ class Plugin extends AppPlugin {
     }
 
     async getCollections() {
-        const collections = await this.data.getAllCollections();
-        return { collections: collections.map(c => ({ guid: c.getGuid(), name: c.getConfiguration().name })) };
+        // Cache collections for 5 seconds to speed up consecutive calls
+        if (!this.collectionCache || Date.now() - this.collectionCacheTime > 5000) {
+            this.collectionCache = await this.data.getAllCollections();
+            this.collectionCacheTime = Date.now();
+        }
+        return { collections: this.collectionCache.map(c => ({ guid: c.getGuid(), name: c.getConfiguration().name })) };
     }
 
     async findCollection(guid) {
-        const collections = await this.data.getAllCollections();
-        return collections.find(c => c.getGuid() === guid);
+        if (!this.collectionCache) await this.getCollections();
+        return this.collectionCache.find(c => c.getGuid() === guid);
+    }
+
+    getTemplates() {
+        const config = this.getConfiguration();
+        return { templates: config.custom?.templates || [] };
+    }
+
+    async saveTemplates({ templates }) {
+        const config = this.getConfiguration();
+        config.custom = config.custom || {};
+        config.custom.templates = templates;
+        await this.data.getPluginByGuid(this.getGuid()).saveConfiguration(config);
+        return { success: true };
     }
 
     async getFields(collectionGuid) {

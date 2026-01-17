@@ -8,7 +8,8 @@
     chrome.runtime.onMessage.addListener((msg, sender, respond) => {
         if (msg.source !== 'save-to-thymer') return;
         const id = `stt-${++msgId}`;
-        pending.set(id, { respond, timer: setTimeout(() => { pending.delete(id); respond({ error: 'Timeout' }); }, 10000) });
+        const timeout = msg.type === 'THYMER_PING' ? 2000 : 5000;
+        pending.set(id, { respond, timer: setTimeout(() => { pending.delete(id); respond({ error: 'Timeout' }); }, timeout) });
         window.postMessage({ type: msg.type, messageId: id, payload: msg.payload, collectionGuid: msg.collectionGuid, source: 'save-to-thymer-bridge' }, '*');
         return true;
     });
