@@ -1,16 +1,24 @@
 (function () {
-    if (window.__saveToThymerInjected) return;
-    window.__saveToThymerInjected = true;
+    // Replace old listener if exists
+    if (window.__saveToThymerListener) {
+        chrome.runtime.onMessage.removeListener(window.__saveToThymerListener);
+    }
 
-    // Cached patterns for performance
-    const PLACEHOLDER_PATTERN = /loading|placeholder|spinner|lazy|transparent|blank|spacer|pixel|1x1|avatar|icon|logo|badge|button/i;
+    // Constants
+    const PLACEHOLDER_PATTERN = /placeholder|spinner|spacer|pixel|1x1|avatar|icon|logo|badge|button|data:image/i;
     const YOUTUBE_PATTERN = /youtube\.com|youtu\.be/;
     const REMOVE_SELECTORS = 'script,style,nav,footer,header,aside,noscript,[role="navigation"],[role="banner"],[role="contentinfo"],.nav,.navbar,.footer,.header,.sidebar,.menu,.ad,.ads,.advertisement,.social-share,.share-buttons,.comments,#comments,.related-posts,.recommended,form,iframe,svg,button,.button,[hidden],[aria-hidden="true"]';
 
-    chrome.runtime.onMessage.addListener((msg, sender, respond) => {
+    // Message handler
+    window.__saveToThymerListener = (msg, sender, respond) => {
         if (msg.type === 'PING') { respond({ pong: true }); return true; }
         if (msg.type === 'GET_PAGE_DATA') { respond(extractPageData()); return true; }
-    });
+    };
+    chrome.runtime.onMessage.addListener(window.__saveToThymerListener);
+
+    // ============================================================================
+    // PAGE DATA EXTRACTION
+    // ============================================================================
 
     function extractPageData() {
         const ogImage = getMeta('og:image') || getMeta('twitter:image');
@@ -28,17 +36,101 @@
         return document.querySelector(`meta[property="${name}"], meta[name="${name}"]`)?.getAttribute('content') || null;
     }
 
+    // ============================================================================
+    // IMAGE EXTRACTION
+    // ============================================================================
+
     function getPageImages(ogImage) {
         const images = new Set();
         if (ogImage) images.add(ogImage);
+
         document.querySelectorAll('img').forEach(img => {
-            const src = getImageSrc(img);
-            if (!src || isPlaceholderImage(src)) return;
-            if (img.naturalWidth && img.naturalWidth < 100) return;
+            const src = getBestImageSrc(img);
+            if (!src || isPlaceholder(src)) return;
+
+            // Skip small images unless they're lazy-loaded (placeholder dimensions)
+            if (img.naturalWidth && img.naturalWidth < 100) {
+                const isLazy = img.classList.contains('lazy') ||
+                    img.classList.contains('lazyload') ||
+                    img.classList.contains('lazyloaded') ||
+                    img.classList.contains('loaded') ||
+                    img.hasAttribute('data-src');
+                if (!isLazy) return;
+            }
+
             try { images.add(new URL(src, location.href).href); } catch { }
         });
-        return [...images].slice(0, 15);
+
+        return [...images].slice(0, 20);
     }
+
+    function getBestImageSrc(img) {
+        // Priority order:
+        // 1. srcset/data-srcset (parse for largest)
+        // 2. data-* attributes (lazy loading)
+        // 3. src attribute
+
+        // 1. Check srcset first - get the largest image
+        const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset');
+        if (srcset) {
+            const largest = parseSrcset(srcset);
+            if (largest) return largest;
+        }
+
+        // 2. Check lazy-loading data attributes
+        const lazyAttrs = [
+            'data-src', 'data-lazy-src', 'data-original', 'data-lazy',
+            'data-ll-src', 'data-large_image', 'data-full-url', 'data-zoom-image'
+        ];
+        for (const attr of lazyAttrs) {
+            const val = img.getAttribute(attr);
+            if (val && !val.startsWith('data:')) return val;
+        }
+
+        // 3. Fall back to src
+        if (img.src && !img.src.startsWith('data:')) return img.src;
+
+        return null;
+    }
+
+    function parseSrcset(srcset) {
+        // Parse srcset and return the URL of the largest image
+        let best = null;
+        let bestWidth = 0;
+
+        srcset.split(',').forEach(entry => {
+            const parts = entry.trim().split(/\s+/);
+            if (parts.length < 1) return;
+
+            const url = parts[0];
+            if (!url || url.startsWith('data:')) return;
+
+            // Parse descriptor (e.g., "1024w" or "2x")
+            let width = 0;
+            if (parts[1]) {
+                const wMatch = parts[1].match(/(\d+)w/);
+                const xMatch = parts[1].match(/(\d+(?:\.\d+)?)x/);
+                if (wMatch) width = parseInt(wMatch[1], 10);
+                else if (xMatch) width = parseFloat(xMatch[1]) * 1000; // treat 2x as 2000
+            }
+
+            if (width > bestWidth || (!best && url)) {
+                best = url;
+                bestWidth = width;
+            }
+        });
+
+        return best;
+    }
+
+    function isPlaceholder(src) {
+        if (!src || src.startsWith('data:')) return true;
+        return PLACEHOLDER_PATTERN.test(src);
+    }
+
+    // ============================================================================
+    // YOUTUBE HANDLING
+    // ============================================================================
 
     function isYouTube() {
         return YOUTUBE_PATTERN.test(location.hostname);
@@ -51,31 +143,15 @@
         return videoId ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` : getMeta('og:image');
     }
 
-    function getImageSrc(img) {
-        return img.src || img.dataset.src || img.dataset.lazySrc || img.dataset.original || img.getAttribute('data-src');
-    }
-
-    function isPlaceholderImage(src) {
-        if (!src || src.startsWith('data:')) return true;
-        return PLACEHOLDER_PATTERN.test(src);
-    }
+    // ============================================================================
+    // MARKDOWN EXTRACTION
+    // ============================================================================
 
     function findMainContent() {
         const selectors = [
-            'article',
-            '[role="main"]',
-            '[itemprop="articleBody"]',
-            'main',
-            '.post-content',
-            '.entry-content',
-            '.article-content',
-            '.article-body',
-            '.post-body',
-            '.content-body',
-            '#content',
-            '.content',
-            '.post',
-            '.entry'
+            'article', '[role="main"]', '[itemprop="articleBody"]', 'main',
+            '.post-content', '.entry-content', '.article-content', '.article-body',
+            '.post-body', '.content-body', '#content', '.content', '.post', '.entry'
         ];
 
         for (const sel of selectors) {
@@ -87,8 +163,7 @@
     }
 
     function findByTextDensity() {
-        let best = null;
-        let bestScore = 0;
+        let best = null, bestScore = 0;
 
         document.querySelectorAll('div, section').forEach(el => {
             if (el.closest('nav, header, footer, aside, .sidebar, .menu, .nav')) return;
@@ -110,13 +185,15 @@
         const content = findMainContent();
         const clone = content.cloneNode(true);
 
-        // Remove non-content elements using cached selector
+        // Remove non-content elements
         clone.querySelectorAll(REMOVE_SELECTORS).forEach(el => el.remove());
 
         // Remove hidden elements
         clone.querySelectorAll('*').forEach(el => {
-            const style = window.getComputedStyle(el);
-            if (style.display === 'none' || style.visibility === 'hidden') el.remove();
+            try {
+                const style = window.getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden') el.remove();
+            } catch { }
         });
 
         return convertToMarkdown(clone);
@@ -125,8 +202,7 @@
     function convertToMarkdown(element) {
         function process(node) {
             if (node.nodeType === Node.TEXT_NODE) {
-                const text = node.textContent.replace(/\s+/g, ' ').trim();
-                return text;
+                return node.textContent.replace(/\s+/g, ' ').trim();
             }
             if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
@@ -154,8 +230,8 @@
                     }
                     return children;
                 case 'img':
-                    const src = getImageSrc(node);
-                    if (!src || isPlaceholderImage(src)) return '';
+                    const src = getBestImageSrc(node);
+                    if (!src || isPlaceholder(src)) return '';
                     try { return `![${node.getAttribute('alt') || ''}](${new URL(src, location.href).href})\n\n`; } catch { }
                     return '';
                 case 'ul':
@@ -163,10 +239,8 @@
                 case 'ol':
                     return '\n' + [...node.children].map((li, i) => `${i + 1}. ` + [...li.childNodes].map(process).filter(Boolean).join('').trim()).join('\n') + '\n\n';
                 case 'li': return children;
-                case 'figure':
-                    return [...node.childNodes].map(process).filter(Boolean).join('');
-                case 'figcaption':
-                    return '*' + children.trim() + '*\n\n';
+                case 'figure': return [...node.childNodes].map(process).filter(Boolean).join('');
+                case 'figcaption': return '*' + children.trim() + '*\n\n';
                 default: return children;
             }
         }

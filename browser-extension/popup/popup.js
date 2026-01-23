@@ -90,17 +90,11 @@ class SaveToThymer {
             this.sourceTabId = tab.id;
             this.sourceWindowId = tab.windowId;
 
-            let needsInjection = false;
+            // Always inject the latest content script
             try {
-                await chrome.tabs.sendMessage(tab.id, { type: SaveToThymer.MSG.PING });
-            } catch {
-                needsInjection = true;
-            }
-
-            if (needsInjection) {
                 await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content/content.js'] });
-                await this.wait(300);
-            }
+            } catch { }
+            await this.wait(200);
 
             this.pageData = await chrome.tabs.sendMessage(tab.id, { type: SaveToThymer.MSG.GET_PAGE_DATA }) || this.setDefaultPageData(tab);
         } catch {
@@ -274,7 +268,8 @@ class SaveToThymer {
 
     selectTemplate(template) {
         this.currentTemplate = template;
-        this.selectedBanner = this.pageData?.ogImage;
+        // Use ogImage, or fall back to first image from the page
+        this.selectedBanner = this.pageData?.ogImage || (this.pageData?.images?.[0]) || null;
         this.$('template-name').textContent = template.name;
         this.$('preview-title').value = this.pageData?.title || '';
         this.$('preview-url').value = this.pageData?.url || '';
