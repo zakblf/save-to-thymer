@@ -70,18 +70,57 @@ class Plugin extends AppPlugin {
         };
     }
 
-    async saveRecord({ collectionGuid, title, properties, bannerUrl, bodyMarkdown }) {
+    async saveRecord({ collectionGuid, title, pageUrl, properties, bannerUrl, bodyMarkdown, selectedText, tags, saveAsTodo, addToday }) {
+        console.log('[SaveToThymer] saveRecord v2 called with pageUrl:', pageUrl);
         const col = await this.findCollection(collectionGuid);
         if (!col) return { error: 'Collection not found' };
 
         const config = col.getConfiguration();
         const fieldsById = new Map((config.fields || []).map(f => [f.id, f]));
-        const newGuid = col.createRecord(title);
-        if (!newGuid) return { error: 'Failed to create record' };
-
         const records = await col.getAllRecords();
-        const record = records.find(r => r.guid === newGuid);
-        if (!record) return { error: 'Record not found' };
+
+        // Deduplication: search for existing record with same URL (fail-safe)
+        let record = null;
+        let isExisting = false;
+        console.log('[SaveToThymer] Dedup: pageUrl=', pageUrl);
+        console.log('[SaveToThymer] Dedup: records count=', records.length);
+        console.log('[SaveToThymer] Dedup: fields=', (config.fields || []).map(f => ({ id: f.id, type: f.type, label: f.label })));
+        if (pageUrl) {
+            try {
+                for (const r of records) {
+                    for (const f of config.fields || []) {
+                        if (['url', 'link'].includes(f.type) || f.label?.toLowerCase() === 'url') {
+                            try {
+                                const prop = r.prop(f.label) || r.prop(f.id);
+                                // Use text() method - that's how Thymer SDK exposes string values
+                                const val = prop?.text?.();
+                                console.log('[SaveToThymer] Dedup: record', r.guid, 'field', f.label, 'final val=', val);
+                                if (val && val === pageUrl) {
+                                    console.log('[SaveToThymer] Dedup: MATCH FOUND!');
+                                    record = r;
+                                    isExisting = true;
+                                    break;
+                                }
+                            } catch (e) { console.log('[SaveToThymer] Dedup: prop error', e); }
+                        }
+                    }
+                    if (record) break;
+                }
+            } catch (err) {
+                console.error('[SaveToThymer] Deduplication error:', err);
+            }
+        }
+        console.log('[SaveToThymer] Dedup: result isExisting=', isExisting);
+
+        // Create new record if no duplicate found
+        if (!record) {
+            const newGuid = col.createRecord(title);
+            if (!newGuid) return { error: 'Failed to create record' };
+            // Re-fetch records since the array is now stale
+            const freshRecords = await col.getAllRecords();
+            record = freshRecords.find(r => r.guid === newGuid);
+            if (!record) return { error: 'Record not found' };
+        }
 
         if (bannerUrl) {
             const bannerField = (config.fields || []).find(f => f.type === 'banner' && f.active);
@@ -105,13 +144,61 @@ class Plugin extends AppPlugin {
             }
         }
 
-        if (bodyMarkdown && typeof record.createLineItem === 'function') {
-            await this.insertMarkdown(record, bodyMarkdown);
+        if (typeof record.createLineItem === 'function') {
+            if (selectedText) {
+                // Selection mode: header line with nested quotes
+                const headerItem = await this.insertHeaderLine(record, title, tags, saveAsTodo);
+                await this.insertQuoteBlock(record, selectedText, headerItem);
+            } else if (bodyMarkdown) {
+                await this.insertMarkdown(record, bodyMarkdown);
+            }
         }
 
-        this.ui.addToaster({ title: 'Saved!', message: `"${title}" added to ${config.name}`, dismissible: true, autoDestroyTime: 2500 });
+        const msg = isExisting ? `Updated "${title}" in ${config.name}` : `"${title}" added to ${config.name}`;
+        this.ui.addToaster({ title: 'Saved!', message: msg, dismissible: true, autoDestroyTime: 2500 });
 
-        return { success: true, recordGuid: newGuid };
+        return { success: true, recordGuid: record.guid };
+    }
+
+    async insertHeaderLine(record, title, tags, saveAsTodo) {
+        try {
+            const itemType = saveAsTodo ? 'task' : 'text';
+            const item = await record.createLineItem(null, null, itemType);
+            if (!item) return null;
+
+            const segments = [{ type: 'text', text: title }];
+
+            if (tags) {
+                const tagList = tags.split(',').map(t => t.trim().replace(/^#/, '')).filter(Boolean);
+                for (const tag of tagList) {
+                    segments.push({ type: 'text', text: ' ' });
+                    segments.push({ type: 'hashtag', text: '#' + tag });
+                }
+            }
+
+            item.setSegments(segments);
+            return item;
+        } catch (err) {
+            console.error('[SaveToThymer] insertHeaderLine error:', err);
+            return null;
+        }
+    }
+
+    async insertQuoteBlock(record, text, parentItem) {
+        const lines = text.split('\n').filter(line => line.trim());
+        let lastItem = null;
+
+        for (const line of lines) {
+            try {
+                const item = await record.createLineItem(parentItem, lastItem, 'quote');
+                if (item) {
+                    item.setSegments([{ type: 'text', text: line.trim() }]);
+                    lastItem = item;
+                }
+            } catch (err) {
+                console.error('[SaveToThymer] insertQuoteBlock error:', err);
+            }
+        }
     }
 
     async insertMarkdown(record, markdown) {

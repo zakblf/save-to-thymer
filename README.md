@@ -2,15 +2,17 @@
 
 A browser extension + Thymer plugin combo for saving web pages directly to Thymer collections. Create custom templates and map page data to your collection properties.
 
-**Version:** 2.0.0
+**Version:** 2.1.0
 
 <img src="save-to-thymer.png" alt="Save to Thymer" width="400">
 
-## ✨ What's New in v2.0.0
+## ✨ What's New in v2.1.0
 
-- **Cloud-Synced Templates** — Templates are now stored in Thymer and sync across all your devices
-- **Faster Connection** — Parallel loading and caching for instant popup open
-- **Improved Reliability** — Exponential backoff and better error handling
+- **Selected Text Capture** — Highlight text on any page and save it as quote block (vs saving all page content)
+- **Keyboard Shortcuts** — Press `Cmd+Shift+S` (Mac) or `Ctrl+Shift+S` (Windows/Linux) to open the popup instantly.  And, then a number `1-9` to quick-save with a template; `Enter` to save also works
+- **Deduplice Saved Pages** - Smart URL-based matching to append to existing pages vs creating a new page for additional saves.
+- **Tags** - Custom persistent tags added to templates (`#read-later`, `#web-clip`, etc.)
+- **TODO** - TODO status support per template.
 
 ## Features
 
@@ -18,6 +20,7 @@ A browser extension + Thymer plugin combo for saving web pages directly to Thyme
 - **Field Mapping** — Map page data (title, URL, description, images) to any collection property
 - **Static Values** — Pre-fill fields with fixed values (e.g., Status = "To Read")
 - **Page Clipping** — Extract and save the main content of articles as Markdown
+- **Selected Text (Quote)** — Capture highlighted text as formatted quote blocks
 - **Image Selector** — Choose from detected page images for the banner
 - **Import/Export** — Backup and share your templates as JSON
 - **Drag & Drop Reorder** — Organize your templates by priority
@@ -84,7 +87,7 @@ If the extension says "Not connected":
 
 ## Upgrading from v1.x
 
-When upgrading to v2.0.0:
+When upgrading to v2.x.0:
 1. **Update the Thymer plugin** — Copy the new `plugin.js` and `plugin.json` into your plugin settings.
 2. **Reload the extension** — Go to `chrome://extensions` and click the reload icon.
 3. Your existing templates will be **automatically migrated** to cloud storage on first use.

@@ -455,6 +455,36 @@ select {
   height: 14px;
 }
 
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.checkbox-label.indent {
+  margin-left: 24px;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.checkbox-label.hidden {
+  display: none;
+}
+
 .settings-content {
   display: flex;
   flex-direction: column;
@@ -518,9 +548,16 @@ select {
   color: var(--text-dim);
   background: var(--surface);
   cursor: default;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  resize: vertical;
+  min-height: 60px;
+  max-height: 150px;
+  line-height: 1.4;
+  font-size: 12px;
+}
+
+.body-preview.empty-selection {
+  color: var(--warning);
+  font-style: italic;
 }
 
 .image-preview-wrapper {

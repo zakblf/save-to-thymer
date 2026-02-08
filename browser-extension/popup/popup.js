@@ -32,6 +32,7 @@ class SaveToThymer {
 
         this.bindEvents();
         this.initDragAndDrop();
+        this.initKeyboardShortcuts();
         this.renderTemplates();
     }
 
@@ -205,6 +206,7 @@ class SaveToThymer {
             this.fields = e.target.value ? await this.getFields(e.target.value) : [];
             this.renderMappings();
         };
+        this.$('editor-save-todo').onchange = () => this.updateTodayVisibility();
     }
 
     showView(id) {
@@ -247,15 +249,43 @@ class SaveToThymer {
         });
     }
 
+    initKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // Handle number keys 1-9 in template selector: auto-save with that template
+            if (this.$('template-selector').classList.contains('active')) {
+                const num = parseInt(e.key, 10);
+                if (num >= 1 && num <= 9 && this.templates[num - 1]) {
+                    e.preventDefault();
+                    this.quickSave(this.templates[num - 1]);
+                }
+            }
+
+            // Handle Enter key in save view: trigger save
+            if (this.$('save-view').classList.contains('active') && e.key === 'Enter') {
+                // Don't trigger save if focus is in a textarea
+                if (document.activeElement?.tagName !== 'TEXTAREA') {
+                    e.preventDefault();
+                    this.save();
+                }
+            }
+        });
+    }
+
+    async quickSave(template) {
+        this.currentTemplate = template;
+        this.selectedBanner = this.pageData?.ogImage || (this.pageData?.images?.[0]) || null;
+        await this.save();
+    }
+
     renderTemplates() {
         const el = this.$('templates-list');
         if (!this.templates.length) {
-            el.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>No templates yet</p></div>';
+            el.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>No templates yet. Create one in Settings.</p></div>';
             return;
         }
         el.innerHTML = this.templates.map((t, i) => `
             <div class="template-item" data-i="${i}" draggable="true">
-                <div class="template-item-handle"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M108,60A16,16,0,1,1,92,44,16,16,0,0,1,108,60Zm56,16a16,16,0,1,0-16-16A16,16,0,0,0,164,76ZM92,112a16,16,0,1,0,16,16A16,16,0,0,0,92,112Zm72,0a16,16,0,1,0,16,16A16,16,0,0,0,164,112ZM92,180a16,16,0,1,0,16,16A16,16,0,0,0,92,180Zm72,0a16,16,0,1,0,16,16A16,16,0,0,0,164,180Z"/></svg></div>
+                <div class="template-item-handle" title="Drag to reorder"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M108,60A16,16,0,1,1,92,44,16,16,0,0,1,108,60Zm56,16a16,16,0,1,0-16-16A16,16,0,0,0,164,76ZM92,112a16,16,0,1,0,16,16A16,16,0,0,0,92,112Zm72,0a16,16,0,1,0,16,16A16,16,0,0,0,164,112ZM92,180a16,16,0,1,0,16,16A16,16,0,0,0,92,180Zm72,0a16,16,0,1,0,16,16A16,16,0,0,0,164,180Z"/></svg></div>
                 <div class="template-item-content">
                     <div class="template-item-info"><span class="template-item-name">${this.escapeHtml(t.name)}</span><span class="template-item-collection">${this.escapeHtml(t.collectionName || '')}</span></div>
                     <div class="template-item-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
@@ -296,7 +326,12 @@ class SaveToThymer {
         }
 
         if (template.clipContent) {
-            html += '<div class="field-group"><label class="field-label">Body Content</label><input type="text" id="preview-body" class="field-input body-preview" readonly></div>';
+            const hasSelection = this.pageData?.selectedText?.length > 0;
+            const label = hasSelection ? 'Selected Text (Quote)' : 'Body Content';
+            const preview = hasSelection
+                ? this.escapeHtml(this.pageData.selectedText)
+                : this.escapeHtml(this.pageData?.bodyMarkdown?.slice(0, 500) || '');
+            html += `<div class="field-group"><label class="field-label">${label}</label><textarea id="preview-body" class="field-input body-preview" rows="4" readonly>${preview}</textarea></div>`;
         }
 
         if (!editable.length && !template.clipContent && !hasBanner) { el.innerHTML = ''; return; }
@@ -304,22 +339,18 @@ class SaveToThymer {
         html += editable.map(m => {
             if (m.source === 'static') {
                 const val = m.fieldType === 'choice' && m.choices ? (m.choices.find(c => c.id === m.staticValue)?.label || m.staticValue) : m.staticValue || '';
-                return `<div class="field-group"><label class="field-label">${m.fieldLabel}</label><input class="field-input" value="${val}" readonly style="color:#666"></div>`;
+                return `<div class="field-group"><label class="field-label">${this.escapeHtml(m.fieldLabel)}</label><input class="field-input" value="${this.escapeHtml(val)}" readonly style="color:#666"></div>`;
             }
             if (m.source === 'custom') {
                 if (m.fieldType === 'choice' && m.choices) {
-                    return `<div class="field-group"><label class="field-label">${m.fieldLabel}</label><select class="field-select" data-field-id="${m.fieldId}"><option value="">Select...</option>${m.choices.map(c => `<option value="${c.id}">${c.label}</option>`).join('')}</select></div>`;
+                    return `<div class="field-group"><label class="field-label">${this.escapeHtml(m.fieldLabel)}</label><select class="field-select" data-field-id="${this.escapeHtml(m.fieldId)}"><option value="">Select...</option>${m.choices.map(c => `<option value="${this.escapeHtml(c.id)}">${this.escapeHtml(c.label)}</option>`).join('')}</select></div>`;
                 }
-                return `<div class="field-group"><label class="field-label">${m.fieldLabel}</label><input class="field-input" data-field-id="${m.fieldId}" placeholder="Enter..."></div>`;
+                return `<div class="field-group"><label class="field-label">${this.escapeHtml(m.fieldLabel)}</label><input class="field-input" data-field-id="${this.escapeHtml(m.fieldId)}" placeholder="Enter..."></div>`;
             }
             return '';
         }).join('');
 
         el.innerHTML = html;
-        if (template.clipContent) {
-            const bodyInput = this.$('preview-body');
-            if (bodyInput) bodyInput.value = this.pageData?.bodyMarkdown || '';
-        }
 
         el.querySelectorAll('.image-preview-wrapper').forEach(wrapper => {
             wrapper.onclick = () => this.showImageSelector(wrapper.dataset.target);
@@ -373,9 +404,12 @@ class SaveToThymer {
         this.$('delete-template-btn').style.display = template ? 'flex' : 'none';
         this.$('editor-template-name').value = template?.name || '';
         this.$('editor-body-source').value = template?.clipContent ? 'page-content' : '';
+        this.$('editor-tags').value = template?.tags || '';
+        this.$('editor-save-todo').checked = template?.saveAsTodo || false;
+        this.updateTodayVisibility();
 
         const sel = this.$('editor-collection');
-        sel.innerHTML = '<option value="">Select...</option>' + this.collections.map(c => `<option value="${c.guid}" ${template?.collectionGuid === c.guid ? 'selected' : ''}>${this.escapeHtml(c.name)}</option>`).join('');
+        sel.innerHTML = '<option value="">Select...</option>' + this.collections.map(c => `<option value="${this.escapeHtml(c.guid)}" ${template?.collectionGuid === c.guid ? 'selected' : ''}>${this.escapeHtml(c.name)}</option>`).join('');
 
         if (template?.collectionGuid) {
             this.fields = await this.getFields(template.collectionGuid);
@@ -386,6 +420,14 @@ class SaveToThymer {
         }
 
         this.showView('template-editor');
+    }
+
+    updateTodayVisibility() {
+        const todayOption = document.getElementById('today-option');
+        const isTodo = this.$('editor-save-todo').checked;
+        if (todayOption) {
+            todayOption.classList.toggle('hidden', !isTodo);
+        }
     }
 
     getOptions(field) {
@@ -404,15 +446,15 @@ class SaveToThymer {
         if (!this.fields.length) { el.innerHTML = '<p style="color:#666;font-size:11px">Select a collection</p>'; return; }
         const typeLabels = { text: 'Text', url: 'URL', banner: 'Image', choice: 'Choice', checkbox: 'Check', number: 'Number' };
 
-        el.innerHTML = this.fields.filter(f => !['created_at', 'updated_at'].includes(f.id)).map(f => {
+        el.innerHTML = this.fields.filter(f => !['created_at', 'updated_at', 'icon'].includes(f.id)).map(f => {
             const e = existing.find(m => m.fieldId === f.id);
             let val = e?.source || '';
             if (e?.source === 'static' && f.type === 'choice') val = `choice:${e.staticValue}`;
             else if (e?.source === 'static' && f.type === 'checkbox') val = `static:${e.staticValue}`;
 
-            const opts = this.getOptions(f).map(o => `<option value="${o.v}" ${val === o.v ? 'selected' : ''}>${o.l}</option>`).join('');
-            const extra = e?.source === 'static' && !['choice', 'checkbox'].includes(f.type) ? `<input class="mapping-static-value" data-field-id="${f.id}" value="${e.staticValue || ''}" placeholder="Value">` : '';
-            return `<div class="mapping-row"><div class="mapping-field-info"><span class="mapping-field-name">${f.label}</span><span class="mapping-field-type">${typeLabels[f.type] || f.type}</span></div><span class="mapping-arrow">→</span><div class="mapping-config"><select class="mapping-source" data-field-id="${f.id}" data-field-type="${f.type}" data-field-label="${f.label}">${opts}</select>${extra}</div></div>`;
+            const opts = this.getOptions(f).map(o => `<option value="${this.escapeHtml(o.v)}" ${val === o.v ? 'selected' : ''}>${this.escapeHtml(o.l)}</option>`).join('');
+            const extra = e?.source === 'static' && !['choice', 'checkbox'].includes(f.type) ? `<input class="mapping-static-value" data-field-id="${this.escapeHtml(f.id)}" value="${this.escapeHtml(e.staticValue || '')}" placeholder="Value">` : '';
+            return `<div class="mapping-row"><div class="mapping-field-info"><span class="mapping-field-name">${this.escapeHtml(f.label)}</span><span class="mapping-field-type">${this.escapeHtml(typeLabels[f.type] || f.type)}</span></div><span class="mapping-arrow">→</span><div class="mapping-config"><select class="mapping-source" data-field-id="${this.escapeHtml(f.id)}" data-field-type="${this.escapeHtml(f.type)}" data-field-label="${this.escapeHtml(f.label)}">${opts}</select>${extra}</div></div>`;
         }).join('');
 
         el.querySelectorAll('.mapping-source').forEach(s => s.onchange = () => this.renderMappings(this.collectMappings()));
@@ -443,7 +485,18 @@ class SaveToThymer {
         const col = this.collections.find(c => c.guid === guid);
         const bodySource = this.$('editor-body-source').value;
         const clipContent = bodySource === 'page-content';
-        const data = { id: this.currentTemplate?.id || Date.now().toString(), name, collectionGuid: guid, collectionName: col?.name, mappings: this.collectMappings(), clipContent };
+        const tags = this.$('editor-tags').value.trim();
+        const saveAsTodo = this.$('editor-save-todo').checked;
+        const data = {
+            id: this.currentTemplate?.id || Date.now().toString(),
+            name,
+            collectionGuid: guid,
+            collectionName: col?.name,
+            mappings: this.collectMappings(),
+            clipContent,
+            tags,
+            saveAsTodo
+        };
         const idx = this.templates.findIndex(t => t.id === this.currentTemplate?.id);
         idx >= 0 ? this.templates[idx] = data : this.templates.push(data);
 
@@ -489,9 +542,14 @@ class SaveToThymer {
                 payload: {
                     collectionGuid: this.currentTemplate.collectionGuid,
                     title,
+                    pageUrl: this.pageData?.url || '',
                     properties: props,
                     bannerUrl: hasBanner ? this.selectedBanner : null,
-                    bodyMarkdown: this.currentTemplate.clipContent ? this.pageData?.bodyMarkdown || '' : null
+                    // Only send bodyMarkdown if no selectedText - plugin prioritizes selectedText
+                    bodyMarkdown: this.currentTemplate.clipContent && !this.pageData?.selectedText ? this.pageData?.bodyMarkdown || '' : null,
+                    selectedText: this.currentTemplate.clipContent ? this.pageData?.selectedText || null : null,
+                    tags: this.currentTemplate.tags || '',
+                    saveAsTodo: this.currentTemplate.saveAsTodo || false
                 }
             });
 

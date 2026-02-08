@@ -22,13 +22,16 @@
 
     function extractPageData() {
         const ogImage = getMeta('og:image') || getMeta('twitter:image');
+        const selection = window.getSelection();
+        const selectedText = selection?.toString().trim() || '';
         return {
             title: getMeta('og:title') || getMeta('twitter:title') || document.title || '',
             url: location.href,
             description: getMeta('og:description') || getMeta('description') || '',
             ogImage: isYouTube() ? getYouTubeThumbnail() : ogImage,
             images: getPageImages(ogImage),
-            bodyMarkdown: extractBodyMarkdown()
+            bodyMarkdown: extractBodyMarkdown(),
+            selectedText
         };
     }
 
@@ -183,37 +186,39 @@
 
     function extractBodyMarkdown() {
         const content = findMainContent();
-        const clone = content.cloneNode(true);
-
-        // Remove non-content elements
-        clone.querySelectorAll(REMOVE_SELECTORS).forEach(el => el.remove());
-
-        // Remove hidden elements
-        clone.querySelectorAll('*').forEach(el => {
-            try {
-                const style = window.getComputedStyle(el);
-                if (style.display === 'none' || style.visibility === 'hidden') el.remove();
-            } catch { }
-        });
-
-        return convertToMarkdown(clone);
+        return finalizeMarkdown(convertToMarkdown(content, true));
     }
 
-    function convertToMarkdown(element) {
+    function convertToMarkdown(element, checkVisibility = false) {
+        function isVisible(el) {
+            try {
+                const style = window.getComputedStyle(el);
+                return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+            } catch { return true; }
+        }
+
         function process(node) {
             if (node.nodeType === Node.TEXT_NODE) {
-                return node.textContent.replace(/\s+/g, ' ').trim();
+                // Collapse whitespace but DO NOT trim to preserve spaces between elements
+                return node.textContent.replace(/\s+/g, ' ');
             }
             if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
+            // Check if element should be removed
+            if (node.matches(REMOVE_SELECTORS)) return '';
+            if (checkVisibility && !isVisible(node)) return '';
+
             const tag = node.tagName.toLowerCase();
             const children = [...node.childNodes].map(process).filter(Boolean).join('');
-            if (!children && !['img', 'br', 'hr'].includes(tag)) return '';
+
+            // Original check: skip empty elements except images/breaks/inputs
+            if (!children && !['img', 'br', 'hr', 'input'].includes(tag)) return '';
 
             switch (tag) {
                 case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
                     return '\n' + '#'.repeat(parseInt(tag[1], 10)) + ' ' + children.trim() + '\n\n';
-                case 'p': return children.trim() + '\n\n';
+                case 'p': case 'div': case 'article': case 'section':
+                    return children.trim() ? children.trim() + '\n\n' : '';
                 case 'br': return '\n';
                 case 'hr': return '\n---\n\n';
                 case 'strong': case 'b': return `**${children}**`;
@@ -244,8 +249,12 @@
                 default: return children;
             }
         }
+        return process(element);
+    }
 
-        return process(element)
+    function finalizeMarkdown(md) {
+        if (!md) return '';
+        return md
             .replace(/\n{3,}/g, '\n\n')
             .replace(/^\s+|\s+$/g, '')
             .slice(0, 50000);
